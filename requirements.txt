@@ -1,0 +1,6 @@
+feedparser
+firecrawl-py
+google-genai
+apscheduler
+python-dotenv
+requests
