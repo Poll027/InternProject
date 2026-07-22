@@ -21,12 +21,12 @@ This is an internship project at Deloitte Africa Lagos office, built by Folajuwo
 - **Key dependencies**:
   - `feedparser` — RSS ingestion for CBN, SEC, IASB
   - `firecrawl-py` — web scraping for NRS, NITDA, FRCN, NAICOM, LIRS
-  - `google-genai` — LLM extraction and opportunity framing (Gemini API key for demo, Azure OpenAI for production). Note: `google-generativeai` is deprecated/EOL as of mid-2026, `google-genai` is the current SDK — do not revert.
+  - LLM extraction and opportunity framing via OpenRouter (`deepseek/deepseek-v3.2`), called directly with `requests` (already a dependency, no SDK needed) — chosen for cost (~$0.02 per full classification run at current volume) over Gemini's free-tier daily quota wall and OpenAI. Azure OpenAI still planned for production. Note: `google-generativeai` and `google-genai` were both tried and dropped — do not reintroduce.
   - `apscheduler` — scheduling daily ingestion runs
   - `python-dotenv` — environment variable management
   - `requests` — HTTP calls where needed
 - **Hosting**: Azure Functions (production). Local for demo.
-- **LLM strategy**: Gemini API key for the demo build. Switch to Azure OpenAI when deploying to Deloitte's Azure tenant.
+- **LLM strategy**: OpenRouter (`deepseek/deepseek-v3.2`) for the demo build — swapped from Gemini after hitting a restrictive free-tier daily quota (20 req/day observed), and from OpenAI before that (never implemented, cost-compared only). Switch to Azure OpenAI when deploying to Deloitte's Azure tenant.
 
 **Hard constraints — no agent should change these without explicit instruction:**
 - Never store or log actual API keys in any file. All secrets via `.env` only.
@@ -126,7 +126,7 @@ regwatch/
 - **Output**: `requirements.txt`, `.env.example`, `.gitignore`, `database/models.py`, `database/db.py` all working. Running `python main.py` creates the SQLite database with all tables.
 - **How to implement**:
   - Create `requirements.txt` with: feedparser, firecrawl-py, openai, apscheduler, python-dotenv, requests
-  - Create `.env.example` with: `GEMINI_API_KEY=`, `FIRECRAWL_API_KEY=`, `DATABASE_URL=regwatch.db`, `LOG_LEVEL=INFO`
+  - Create `.env.example` with: `OPENROUTER_API_KEY=`, `FIRECRAWL_API_KEY=`, `DATABASE_URL=regwatch.db`, `LOG_LEVEL=INFO`
   - Create `.gitignore` that excludes `.env`, `*.db`, `__pycache__`, `.env.local`
   - In `database/models.py`: define all six tables as SQL CREATE TABLE IF NOT EXISTS statements. Use standard SQL only — no SQLite-specific types that break on PostgreSQL. Use TEXT for strings, INTEGER for ints, REAL for floats, BOOLEAN as INTEGER (0/1).
   - In `database/db.py`: connection manager, `get_connection()`, `execute()`, `fetchall()`, `fetchone()` helpers
@@ -213,7 +213,7 @@ If the agent cannot answer all four parts specifically, it should re-read this d
 | Media monitoring | Phase 2 — not in current scope |
 | Database (dev) | SQLite |
 | Database (prod) | PostgreSQL on Azure |
-| LLM (demo) | Gemini API |
+| LLM (demo) | OpenRouter, `deepseek/deepseek-v3.2` |
 | LLM (prod) | Azure OpenAI |
 | Hashing strategy | Item-level SHA-256 only |
 | Urgency levels | CRITICAL, HIGH, MEDIUM, LOW |

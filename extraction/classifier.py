@@ -3,8 +3,8 @@ import json
 import os
 import time
 
-from google import genai
-from google.genai import types
+import requests
+
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -28,14 +28,22 @@ CLASSIFICATION_SCHEMA = {
                     "confidence": {"type": "number"},
                 },
                 "required": ["service_line", "urgency", "summary", "evidence_excerpt", "confidence"],
+                "additionalProperties": False,
             },
         },
     },
     "required": ["relevant", "findings"],
+    "additionalProperties": False,
 }
 
-def get_gemini_client():
-    return genai.Client(api_key = os.getenv("GEMINI_API_KEY"))
+OPENROUTER_MODEL = "deepseek/deepseek-v3.2"
+
+
+def get_openrouter_headers():
+    return {
+        "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
+        "Content-Type": "application/json",
+    }
 
 def build_prompt(item):
     return f"""You are a regulatory analyst for Deloitte Africa's Nigeria practice.
@@ -50,21 +58,30 @@ Document text:
 {item['raw_text']}
 """
 
-def classify_item(item, client):
+def classify_item(item, headers):
     prompt = build_prompt(item)
-    response = client.models.generate_content(
-        model = "gemini-2.5-flash",
-        contents = prompt,
-        config = types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=CLASSIFICATION_SCHEMA,
-
-        )
+    response = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers=headers,
+        json={
+            "model": OPENROUTER_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "classification",
+                    "strict": True,
+                    "schema": CLASSIFICATION_SCHEMA,
+                },
+            },
+        },
     )
-    return json.loads(response.text)
+    response.raise_for_status()
+    content = response.json()["choices"][0]["message"]["content"]
+    return json.loads(content)
 
 def run_classification_pipeline(conn):
-    client = get_gemini_client()
+    headers = get_openrouter_headers()
     items = conn.execute(
         """
         SELECT source_items.id, source_items.title, source_items.raw_text,
@@ -77,7 +94,7 @@ def run_classification_pipeline(conn):
 
     for item in items:
         try:
-            result = classify_item(item, client)
+            result = classify_item(item, headers)
         except Exception as e:
             logger.error(f"Classification failed for item {item['id']}: {e}")
             continue
@@ -108,4 +125,4 @@ def run_classification_pipeline(conn):
         )
         conn.commit()
         logger.info(f"{item['title'][:50]}: {len(result.get('findings', []))} findings")
-        time.sleep(13)
+        time.sleep(2)
