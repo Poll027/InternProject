@@ -1,7 +1,7 @@
 # RegWatch — Agent Handoff Plan
 **Last updated by**: Claude Code (terminal session)
-**Last updated at**: 2026-07-14
-**Current status**: STEPS_1_TO_5_COMPLETE — ready for Step 6 (LLM classification)
+**Last updated at**: 2026-07-23
+**Current status**: STEPS_1_TO_7_COMPLETE — ready for Step 8 (reports)
 
 ---
 
@@ -89,14 +89,17 @@ regwatch/
 - **Step 3 done**: `ingestion/sources.py` — all 8 sources defined in `SOURCES`, `seed_sources(conn)` populates the `sources` table via `INSERT OR IGNORE` (idempotent on `name`). Verified all 8 rows present with correct `pipeline`/`reliability_score`.
 - **Step 4 done**: `ingestion/rss_poller.py` — `poll_rss_source` + `run_rss_pipeline`, CBN and SEC only (IASB still excluded per plan). Verified: first run found real new items, second run found 0 for both (hash dedup confirmed working).
 - **Step 5 done**: `fetch_full_content`, `get_firecrawl_client`, `run_content_fetch_pipeline` added to `rss_poller.py`. All 51 seeded items reached `EXTRACTED` with real markdown content in `raw_text` (spot-checked — substantive circular text present, some nav/share-link boilerplate from Firecrawl's markdown conversion, not blocking).
+- **Step 6 done**: `extraction/classifier.py` — `classify_item`/`run_classification_pipeline`, calls OpenRouter (`deepseek/deepseek-v3.2`) directly via `requests` (no SDK) with `response_format: json_schema` (`strict: true`) to force valid structured output. `confidence_score` on each finding = `source.reliability_score * llm_confidence` (composite formula from the completed decisions above). Verified: 83 findings written across 51 items, zero duplicate `(source_item_id, service_line)` pairs, `source_url`/`evidence_excerpt` populated on every row per the hard constraint.
+- **Step 7 done**: `extraction/framer.py` — `frame_finding`/`run_framing_pipeline`, second half of the two-prompt architecture. Plain-text completion (no JSON schema needed, single prose field). Prompt enforces internal-audience-only framing and three labeled sections (Opportunity / Recommended Action / Why Now), with explicit instruction to scale depth to the finding's actual significance — verified working (CRITICAL finding got a multi-section breakdown with immediate/mid-term action tiers; LOW finding stayed to a few sentences with a 6-month re-review note). Un-framed findings detected via `LEFT JOIN opportunity_framings ... WHERE id IS NULL` — no extra status column needed, naturally idempotent. Verified: 83/83 findings framed, reruns produce 0 new work as expected.
 
 ---
 
 ## 4. CURRENT STATE
 
-- What works: Full pipeline runs end to end via `python main.py` — creates tables, seeds 8 sources, polls CBN + SEC RSS with dedup, fetches full content via Firecrawl for every PENDING item. Verified clean run (0 errors) after a fresh `rm regwatch.db`.
-- What is broken or incomplete: Pipeline B (scraping NRS, NITDA, FRCN, NAICOM, LIRS) not started. IASB RSS not yet polled (deliberately excluded per plan until CBN/SEC proven — they now are, so IASB can be added). LLM classification/framing (Step 6+) not started. Reports and delivery not started.
-- Any half-done work: None — Steps 1-5 are each fully working and verified.
+- What works: Full pipeline runs end to end via `python main.py` — creates tables, seeds 8 sources, polls CBN + SEC RSS with dedup, fetches full content via Firecrawl for every PENDING item, classifies every EXTRACTED item into `findings` via OpenRouter/DeepSeek, and frames every un-framed finding into `opportunity_framings`. Verified clean run (0 errors). All four stages are independently idempotent — each queries DB state (hash existence, `processing_status`, or a `LEFT JOIN` null-check) rather than "did we run today," so reruns only ever touch what's genuinely new or incomplete.
+- What is broken or incomplete: Pipeline B (scraping NRS, NITDA, FRCN, NAICOM, LIRS) not started. IASB RSS not yet polled (deliberately excluded per plan until CBN/SEC proven — they now are, so IASB can be added). Reports and delivery not started — there is currently no way to see findings/framings except direct `sqlite3` queries. `google-genai`/Gemini fully removed; do not reintroduce.
+- Any half-done work: None — Steps 1-7 are each fully working and verified.
+- Performance note: DeepSeek V3.2 via OpenRouter has highly variable latency per call (observed 15s to 5+ minutes per classification/framing call, average ~40s) — not the deliberate rate-limit sleep (2s), but actual API/routing latency. Acceptable for a background-agent use case (explicitly confirmed acceptable by the project owner) but would need a timeout/retry or provider-routing pin (`provider: {sort: "throughput"}`) if this ever needs to run synchronously or against a much larger daily volume.
 - Notes:
   - CBN RSS feed confirmed working at `https://www.cbn.gov.ng/RSS/CircularsRSS.html` — live data verified, real items ingested
   - SEC circulars page confirmed at `https://sec.gov.ng/for-investors/keep-track-of-circulars/` — RSS feed at `sec.gov.ng/feeds/circulars.rss` — **known issue**: SEC's feed declares `<link>` entries resolving to `http://localhost/...` (a misconfiguration on SEC's end). Fix implemented in `poll_rss_source`: strip the feed-provided scheme/host via `urlparse`, keep only path+query, rebuild the URL against the trusted `source["url"]` domain from `sources.py`. Do not revert this — without it, Firecrawl rejects every SEC item with "URL must have a valid top-level domain."
@@ -125,7 +128,7 @@ regwatch/
 - **Input**: Empty project directory, requirements.txt to be created
 - **Output**: `requirements.txt`, `.env.example`, `.gitignore`, `database/models.py`, `database/db.py` all working. Running `python main.py` creates the SQLite database with all tables.
 - **How to implement**:
-  - Create `requirements.txt` with: feedparser, firecrawl-py, openai, apscheduler, python-dotenv, requests
+  - Create `requirements.txt` with: feedparser, firecrawl-py, apscheduler, python-dotenv, requests (no LLM SDK — OpenRouter is called directly via `requests`)
   - Create `.env.example` with: `OPENROUTER_API_KEY=`, `FIRECRAWL_API_KEY=`, `DATABASE_URL=regwatch.db`, `LOG_LEVEL=INFO`
   - Create `.gitignore` that excludes `.env`, `*.db`, `__pycache__`, `.env.local`
   - In `database/models.py`: define all six tables as SQL CREATE TABLE IF NOT EXISTS statements. Use standard SQL only — no SQLite-specific types that break on PostgreSQL. Use TEXT for strings, INTEGER for ints, REAL for floats, BOOLEAN as INTEGER (0/1).
@@ -189,6 +192,30 @@ regwatch/
   - Add rate limiting: 1 second sleep between Firecrawl calls to avoid hammering the API
 - **Done when**: `sqlite3 regwatch.db "SELECT title, processing_status, length(raw_text) FROM source_items LIMIT 5;"` shows EXTRACTED status and non-zero raw_text length for CBN items.
 - **Do NOT**: Pass raw_text to the LLM yet. Do not implement Firecrawl for scraping pipeline sources yet — that is Pipeline B in a later step. Do not remove FETCH_FAILED items — keep them for retry logic later.
+
+### Step 6 — LLM classification — ✅ DONE
+- **Goal**: For each EXTRACTED source_item, judge relevance to the four service lines, urgency, and a confidence sub-score; write one row per relevant service line into `findings`
+- **Input**: Completed Step 5 with real EXTRACTED items
+- **Output**: `extraction/classifier.py` — `build_prompt`, `classify_item`, `run_classification_pipeline`, `get_openrouter_headers`, `OPENROUTER_MODEL`
+- **How it was implemented**:
+  - Query `source_items` joined to `sources` (for `reliability_score`) `WHERE processing_status = 'EXTRACTED'`
+  - One OpenRouter call per item, `response_format: {type: "json_schema", json_schema: {strict: true, schema: CLASSIFICATION_SCHEMA}}` — forces valid JSON matching `{relevant, findings: [{service_line, urgency, summary, evidence_excerpt, confidence}]}`, `additionalProperties: false` at every level (required for strict mode)
+  - `confidence_score` on the inserted `findings` row = `item.reliability_score * finding.confidence` — the composite formula from the completed decisions
+  - On success, `source_items.processing_status` → `CLASSIFIED`; on failure, logged and left as `EXTRACTED` so it's naturally retried next run
+- **Done when**: `sqlite3 regwatch.db "SELECT service_line, urgency, count(*) FROM findings GROUP BY service_line, urgency;"` shows a real distribution across all four service lines. Verified.
+- **Do NOT**: Reintroduce `google-generativeai` or `google-genai` (both dropped — Gemini's free tier daily quota, observed as low as 20 req/day, made it unworkable). Do not add an LLM SDK dependency — `requests` direct-to-OpenRouter is deliberate.
+
+### Step 7 — Opportunity framing — ✅ DONE
+- **Goal**: For each finding with no existing framing, generate an internal "what should we do about this" narrative and write it to `opportunity_framings`
+- **Input**: Completed Step 6 with real rows in `findings`
+- **Output**: `extraction/framer.py` — `build_framing_prompt`, `frame_finding`, `run_framing_pipeline`
+- **How it was implemented**:
+  - Reuses `OPENROUTER_MODEL` and `get_openrouter_headers()` from `classifier.py` via import rather than duplicating them
+  - Un-framed findings found via `findings LEFT JOIN opportunity_framings ... WHERE opportunity_framings.id IS NULL` — no new status column needed
+  - Plain-text completion (no JSON schema — single prose field, schema would be pure overhead)
+  - Prompt enforces: internal-audience-only framing (never client/partner-facing, per the hard constraints), three labeled sections (Opportunity / Recommended Action / Why Now), and explicit instruction to scale depth/length to the finding's actual significance
+- **Done when**: `sqlite3 regwatch.db "SELECT count(*) FROM opportunity_framings;"` equals the `findings` count. Verified 83/83, and spot-checked that a CRITICAL finding produced a substantially deeper framing than a LOW finding.
+- **Do NOT**: Add a JSON schema to this step — it was deliberately left as plain text. Do not skip the internal-audience instruction in the prompt.
 
 ---
 

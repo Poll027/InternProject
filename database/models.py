@@ -31,6 +31,7 @@ id INTEGER PRIMARY KEY,
 source_item_id INTEGER NOT NULL REFERENCES source_items(id),
 service_line TEXT NOT NULL,
 urgency TEXT NOT NULL,
+headline TEXT,
 summary TEXT NOT NULL,
 confidence_score REAL NOT NULL,
 source_url TEXT NOT NULL,
@@ -62,5 +63,5 @@ finding_id INTEGER NOT NULL REFERENCES findings(id)
 """
 
 def create_tables (conn):
-    conn.executescript(CREATE_TABLES_SQL)
+    conn.executes@cript(CREATE_TABLES_SQL)
     conn.commit()

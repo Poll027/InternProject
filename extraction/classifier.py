@@ -23,11 +23,12 @@ CLASSIFICATION_SCHEMA = {
                 "properties": {
                     "service_line": {"type": "string", "enum": list(SERVICE_LINES)},
                     "urgency": {"type": "string", "enum": list(URGENCY_LEVELS)},
+                    "headline": {"type": "string"},
                     "summary": {"type": "string"},
                     "evidence_excerpt": {"type": "string"},
                     "confidence": {"type": "number"},
                 },
-                "required": ["service_line", "urgency", "summary", "evidence_excerpt", "confidence"],
+                "required": ["service_line", "urgency", "headline", "summary", "evidence_excerpt", "confidence"],
                 "additionalProperties": False,
             },
         },
@@ -48,7 +49,7 @@ def get_openrouter_headers():
 def build_prompt(item):
     return f"""You are a regulatory analyst for Deloitte Africa's Nigeria practice.
 Read the circular below and decide which of these service lines it is relevant to: {", ".join(SERVICE_LINES)}.
-For each relevant service line, assign an urgency ({", ".join(URGENCY_LEVELS)}), a one-paragraph summary, a short verbatim evidence excerpt quoted from the text, and a confidence score between 0 and 1 for your own judgment.
+For each relevant service line, assign an urgency ({", ".join(URGENCY_LEVELS)}), a punchy one-sentence headline (max ~15 words, suitable for a scannable email digest), a one-paragraph summary, a short verbatim evidence excerpt quoted from the text, and a confidence score between 0 and 1 for your own judgment.
 If the circular is not relevant to any service line, return relevant: false and an empty findings list.
 
 Title: {item['title']}
@@ -104,13 +105,14 @@ def run_classification_pipeline(conn):
             conn.execute(
                 """
                 INSERT INTO findings
-                    (source_item_id, service_line, urgency, summary, confidence_score, source_url, evidence_excerpt, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (source_item_id, service_line, urgency, headline, summary, confidence_score, source_url, evidence_excerpt, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     item["id"],
                     finding["service_line"],
                     finding["urgency"],
+                    finding["headline"],
                     finding["summary"],
                     confidence_score,
                     item["url"],

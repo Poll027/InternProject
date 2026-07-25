@@ -3,3 +3,5 @@
 __pycache__/
 .env.local
 venv/
+reports/output/
+*.log
