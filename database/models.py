@@ -63,5 +63,5 @@ finding_id INTEGER NOT NULL REFERENCES findings(id)
 """
 
 def create_tables (conn):
-    conn.executes@cript(CREATE_TABLES_SQL)
+    conn.executescript(CREATE_TABLES_SQL)
     conn.commit()
