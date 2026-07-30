@@ -1,13 +1,14 @@
 from datetime import datetime, timezone
 import time
-import requests
-from extraction.classifier import OPENROUTER_MODEL, get_openrouter_headers
+from extraction.classifier import OPENROUTER_MODEL, get_openrouter_headers, post_to_openrouter
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 def build_framing_prompt(finding):
     return f"""You are advising Deloitte Africa's Nigeria {finding['service_line']} practice on how to act on a regulatory finding. Write an internal briefing note for analysts and managers only — never phrase this as if addressed to a client or partner directly.
+
+Do not add a memo header, letterhead, or metadata fields — no "TO:", "FROM:", "DATE:", "SUBJECT:", or classification markings, and do not invent a date. Start directly with the first section below.
 
 Structure your response with these labeled sections:
 Opportunity: What does this finding mean for the {finding['service_line']} practice — a new engagement angle, a compliance risk to flag to existing clients, or an internal awareness item?
@@ -25,18 +26,13 @@ Source: {finding['source_url']}
 
 def frame_finding(finding, headers):
     prompt = build_framing_prompt(finding)
-    response = requests.post("https://openrouter.ai/api/v1/chat/completions",
-                             headers = headers,
-                             json={
-                                 "model": OPENROUTER_MODEL,
-                                 "messages": [
-                                     {
-                                         "role": "user",
-                                         "content": prompt
-                                     }
-                                 ]
-                             })
-    response.raise_for_status()
+    response = post_to_openrouter(
+        {
+            "model": OPENROUTER_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        headers,
+    )
     return response.json()["choices"][0]["message"]["content"]
 
 def run_framing_pipeline(conn):

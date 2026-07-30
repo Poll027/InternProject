@@ -46,6 +46,23 @@ def get_openrouter_headers():
         "Content-Type": "application/json",
     }
 
+
+def post_to_openrouter(payload, headers, max_retries=3, retry_delay=5):
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+            response.raise_for_status()
+            return response
+        except requests.exceptions.ConnectionError as e:
+            if attempt == max_retries:
+                raise
+            logger.warning(f"OpenRouter connection failed (attempt {attempt}/{max_retries}), retrying in {retry_delay}s: {e}")
+            time.sleep(retry_delay)
+
 def build_prompt(item):
     return f"""You are a regulatory analyst for Deloitte Africa's Nigeria practice.
 Read the circular below and decide which of these service lines it is relevant to: {", ".join(SERVICE_LINES)}.
@@ -61,10 +78,8 @@ Document text:
 
 def classify_item(item, headers):
     prompt = build_prompt(item)
-    response = requests.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers=headers,
-        json={
+    response = post_to_openrouter(
+        {
             "model": OPENROUTER_MODEL,
             "messages": [{"role": "user", "content": prompt}],
             "response_format": {
@@ -76,8 +91,8 @@ def classify_item(item, headers):
                 },
             },
         },
+        headers,
     )
-    response.raise_for_status()
     content = response.json()["choices"][0]["message"]["content"]
     return json.loads(content)
 
