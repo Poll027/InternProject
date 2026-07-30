@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
-import os
-import time
+import asyncio
 from urllib.parse import urljoin, urlparse
 import feedparser
 
-from firecrawl import Firecrawl
+from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+from crawl4ai.processors.pdf import PDFCrawlerStrategy, PDFContentScrapingStrategy
 from ingestion.sources import SOURCES
 from utils.hashing import generate_item_hash
 from utils.logger import get_logger
@@ -55,32 +55,45 @@ def run_rss_pipeline(conn):
         new_items = poll_rss_source(source, conn)
         logger.info(f"{source['name']}: {len(new_items)} new items found")
 
-def get_firecrawl_client():
-    return Firecrawl(api_key=os.getenv("FIRECRAWL_API_KEY"))
+PDF_CONFIG = CrawlerRunConfig(scraping_strategy=PDFContentScrapingStrategy())
 
-def fetch_full_content(item, firecrawl_client):
-    doc = firecrawl_client.scrape(item["url"], formats=["markdown"])
-    return doc.markdown
+
+async def _fetch_one(item, html_crawler, pdf_crawler):
+    if item["url"].lower().endswith(".pdf"):
+        result = await pdf_crawler.arun(item["url"], config=PDF_CONFIG)
+        text = str(result.markdown)
+        # PDFCrawlerStrategy reports html="Scraper will handle the real work" as a
+        # stub, which trips crawl4ai's anti-bot "near-empty content" heuristic on
+        # every PDF regardless of actual content — check extracted text instead of
+        # result.success.
+        if not text.strip():
+            raise RuntimeError(result.error_message or "empty PDF content")
+        return text
+
+    result = await html_crawler.arun(item["url"])
+    if not result.success:
+        raise RuntimeError(result.error_message or "crawl failed")
+    return str(result.markdown)
+
+
+async def _fetch_all_content(conn, pending_items):
+    async with AsyncWebCrawler() as html_crawler, AsyncWebCrawler(crawler_strategy=PDFCrawlerStrategy()) as pdf_crawler:
+        for item in pending_items:
+            try:
+                raw_text = await _fetch_one(item, html_crawler, pdf_crawler)
+                conn.execute(
+                    "UPDATE source_items SET raw_text = ?, processing_status = 'EXTRACTED', last_seen_at = ? WHERE id = ?",
+                    (raw_text, datetime.now(timezone.utc).isoformat(), item["id"]),
+                )
+            except Exception as e:
+                logger.error(f"Crawl4AI failed for item {item['id']}: {e}")
+                conn.execute("UPDATE source_items SET processing_status = 'FETCH_FAILED' WHERE id = ?",
+                             (item["id"],),)
+
+            conn.commit()
 
 def run_content_fetch_pipeline(conn):
-    firecrawl_client = get_firecrawl_client()
     pending_items = conn.execute(
         "SELECT id, url FROM source_items WHERE processing_status = 'PENDING'"
     ).fetchall()
-
-    for item in pending_items:
-        try:
-            raw_text = fetch_full_content(item, firecrawl_client)
-            conn.execute(
-                "UPDATE source_items SET raw_text = ?, processing_status = 'EXTRACTED', last_seen_at = ? WHERE id = ?",
-                (raw_text, datetime.now(timezone.utc).isoformat(), item["id"]),
-            )
-        except Exception as e:
-            logger.error(f"Firecrawl failed for item {item['id']}: {e}")
-            conn.execute("UPDATE source_items SET processing_status = 'FETCH_FAILED' WHERE id = ?",
-                         (item["id"],),)
-            
-        conn.commit()
-        time.sleep(1)
-
-        
+    asyncio.run(_fetch_all_content(conn, pending_items))

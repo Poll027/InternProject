@@ -1,9 +1,14 @@
 from datetime import datetime, timedelta, timezone
+import asyncio
+import json
 import os
 import time
+from urllib.parse import urljoin
 
+from crawl4ai import AsyncWebCrawler
 from firecrawl import Firecrawl
 
+from extraction.classifier import OPENROUTER_MODEL, get_openrouter_headers, post_to_openrouter
 from ingestion.sources import SOURCES
 from utils.hashing import generate_item_hash
 from utils.logger import get_logger
@@ -24,11 +29,13 @@ LISTING_SCHEMA = {
                     "url": {"type": "string"},
                     "published_date": {"type": "string"},
                 },
-                "required": ["title", "url"],
+                "required": ["title", "url", "published_date"],
+                "additionalProperties": False,
             },
         },
     },
     "required": ["items"],
+    "additionalProperties": False,
 }
 
 
@@ -36,7 +43,7 @@ def get_firecrawl_client():
     return Firecrawl(api_key=os.getenv("FIRECRAWL_API_KEY"))
 
 
-def scrape_source_listing(source, firecrawl_client):
+def scrape_source_listing_firecrawl(source, firecrawl_client):
     doc = firecrawl_client.scrape(
         source["url"],
         formats=[{
@@ -48,13 +55,56 @@ def scrape_source_listing(source, firecrawl_client):
     return doc.json.get("items", [])
 
 
-def poll_scrape_source(source, conn, firecrawl_client):
+def build_listing_prompt(source_url, markdown):
+    return f"""Extract every circular, notice, directive, or news item listed on this page as a list. For each, include its title, the URL to the item (absolute, or relative to {source_url}), and its published date if shown, converted to YYYY-MM-DD format (empty string if not shown).
+
+Page content (markdown):
+{markdown}
+"""
+
+
+def extract_listing(source_url, markdown, headers):
+    response = post_to_openrouter(
+        {
+            "model": OPENROUTER_MODEL,
+            "messages": [{"role": "user", "content": build_listing_prompt(source_url, markdown)}],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {"name": "listing", "strict": True, "schema": LISTING_SCHEMA},
+            },
+        },
+        headers,
+    )
+    content = response.json()["choices"][0]["message"]["content"]
+    return json.loads(content).get("items", [])
+
+
+async def _scrape_source_listing_crawl4ai(source, headers):
+    async with AsyncWebCrawler() as crawler:
+        result = await crawler.arun(source["url"])
+        if not result.success:
+            raise RuntimeError(result.error_message or "crawl failed")
+        items = extract_listing(source["url"], str(result.markdown), headers)
+        for item in items:
+            item["url"] = urljoin(source["url"], item["url"])
+        return items
+
+
+def scrape_source_listing(source, firecrawl_client, headers):
+    try:
+        return scrape_source_listing_firecrawl(source, firecrawl_client)
+    except Exception as e:
+        logger.warning(f"Firecrawl failed for {source['name']}, falling back to crawl4ai: {e}")
+        return asyncio.run(_scrape_source_listing_crawl4ai(source, headers))
+
+
+def poll_scrape_source(source, conn, firecrawl_client, headers):
     row = conn.execute(
         "SELECT id FROM sources WHERE name = ?", (source["name"],)
     ).fetchone()
     source_id = row["id"]
 
-    items = scrape_source_listing(source, firecrawl_client)
+    items = scrape_source_listing(source, firecrawl_client, headers)
     new_items = []
     cutoff = datetime.now(timezone.utc) - timedelta(days=MAX_ITEM_AGE_DAYS)
 
@@ -91,11 +141,12 @@ def poll_scrape_source(source, conn, firecrawl_client):
 
 def run_scrape_pipeline(conn):
     firecrawl_client = get_firecrawl_client()
+    headers = get_openrouter_headers()
     scrape_sources = [s for s in SOURCES if s["pipeline"] == "SCRAPE"]
 
     for source in scrape_sources:
         try:
-            new_items = poll_scrape_source(source, conn, firecrawl_client)
+            new_items = poll_scrape_source(source, conn, firecrawl_client, headers)
             logger.info(f"{source['name']}: {len(new_items)} new items found")
         except Exception as e:
             logger.error(f"Scrape failed for {source['name']}: {e}")
