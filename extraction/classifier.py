@@ -5,6 +5,7 @@ import time
 
 import requests
 
+from utils.db_filters import in_clause
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -96,16 +97,18 @@ def classify_item(item, headers):
     content = response.json()["choices"][0]["message"]["content"]
     return json.loads(content)
 
-def run_classification_pipeline(conn):
+def run_classification_pipeline(conn, source_names=None):
     headers = get_openrouter_headers()
+    clause, params = in_clause("sources.name", source_names)
     items = conn.execute(
-        """
+        f"""
         SELECT source_items.id, source_items.title, source_items.raw_text,
                source_items.url, sources.name AS source_name, sources.reliability_score
         FROM source_items
         JOIN sources ON sources.id = source_items.source_id
-        WHERE source_items.processing_status = 'EXTRACTED'
-        """
+        WHERE source_items.processing_status = 'EXTRACTED'{clause}
+        """,
+        params,
     ).fetchall()
 
     for item in items:

@@ -139,10 +139,10 @@ def poll_scrape_source(source, conn, firecrawl_client, headers):
     return new_items
 
 
-def run_scrape_pipeline(conn):
+def run_scrape_pipeline(conn, source_names=None):
     firecrawl_client = get_firecrawl_client()
     headers = get_openrouter_headers()
-    scrape_sources = [s for s in SOURCES if s["pipeline"] == "SCRAPE"]
+    scrape_sources = [s for s in SOURCES if s["pipeline"] == "SCRAPE" and (not source_names or s["name"] in source_names)]
 
     for source in scrape_sources:
         try:

@@ -6,6 +6,7 @@ import feedparser
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
 from crawl4ai.processors.pdf import PDFCrawlerStrategy, PDFContentScrapingStrategy
 from ingestion.sources import SOURCES
+from utils.db_filters import in_clause
 from utils.hashing import generate_item_hash
 from utils.logger import get_logger
 
@@ -49,8 +50,8 @@ def poll_rss_source(source, conn):
     return new_items
 
 
-def run_rss_pipeline(conn):
-    rss_sources = [s for s in SOURCES if s["pipeline"] == "RSS" and s["name"] in ("CBN", "SEC")]
+def run_rss_pipeline(conn, source_names=None):
+    rss_sources = [s for s in SOURCES if s["pipeline"] == "RSS" and (not source_names or s["name"] in source_names)]
     for source in rss_sources:
         new_items = poll_rss_source(source, conn)
         logger.info(f"{source['name']}: {len(new_items)} new items found")
@@ -92,8 +93,15 @@ async def _fetch_all_content(conn, pending_items):
 
             conn.commit()
 
-def run_content_fetch_pipeline(conn):
+def run_content_fetch_pipeline(conn, source_names=None):
+    clause, params = in_clause("sources.name", source_names)
     pending_items = conn.execute(
-        "SELECT id, url FROM source_items WHERE processing_status = 'PENDING'"
+        f"""
+        SELECT source_items.id, source_items.url
+        FROM source_items
+        JOIN sources ON sources.id = source_items.source_id
+        WHERE source_items.processing_status = 'PENDING'{clause}
+        """,
+        params,
     ).fetchall()
     asyncio.run(_fetch_all_content(conn, pending_items))

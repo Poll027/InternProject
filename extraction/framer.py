@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 import time
 from extraction.classifier import OPENROUTER_MODEL, get_openrouter_headers, post_to_openrouter
+from utils.db_filters import in_clause
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -35,16 +36,20 @@ def frame_finding(finding, headers):
     )
     return response.json()["choices"][0]["message"]["content"]
 
-def run_framing_pipeline(conn):
+def run_framing_pipeline(conn, source_names=None):
     headers = get_openrouter_headers()
+    clause, params = in_clause("sources.name", source_names)
     findings = conn.execute(
-        """
+        f"""
         SELECT findings.id, findings.service_line, findings.urgency, findings.summary,
                findings.evidence_excerpt, findings.source_url
         FROM findings
+        JOIN source_items ON source_items.id = findings.source_item_id
+        JOIN sources ON sources.id = source_items.source_id
         LEFT JOIN opportunity_framings ON opportunity_framings.finding_id = findings.id
-        WHERE opportunity_framings.id IS NULL
-        """
+        WHERE opportunity_framings.id IS NULL{clause}
+        """,
+        params,
     ).fetchall()
 
     for finding in findings:
