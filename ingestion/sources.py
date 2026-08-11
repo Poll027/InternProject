@@ -58,7 +58,7 @@ SOURCES = [
     },
     {
         "name": "FRCN",
-        "url": "https://financialreportingcouncil.gov.ng",
+        "url": "https://www.frcnigeria.gov.ng",
         "feed_url": None,
         "regulatory_body": "Financial Reporting Council of Nigeria",
         "country": "NG",

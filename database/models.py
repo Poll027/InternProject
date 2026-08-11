@@ -16,7 +16,7 @@ created_at TEXT NOT NULL
 CREATE TABLE IF NOT EXISTS source_items (
 id INTEGER PRIMARY KEY,
 source_id INTEGER NOT NULL REFERENCES sources(id),
-title text not null,
+title TEXT NOT NULL,
 url TEXT NOT NULL,
 published_date TEXT,
 item_hash TEXT UNIQUE NOT NULL,
@@ -60,6 +60,10 @@ id INTEGER PRIMARY KEY,
 report_id INTEGER NOT NULL REFERENCES reports(id),
 finding_id INTEGER NOT NULL REFERENCES findings(id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_findings_source_item ON findings(source_item_id);
+CREATE INDEX IF NOT EXISTS idx_findings_service_line ON findings(service_line);
+CREATE INDEX IF NOT EXISTS idx_source_items_status ON source_items(processing_status);
 """
 
 def create_tables (conn):

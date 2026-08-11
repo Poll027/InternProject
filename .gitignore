@@ -5,3 +5,4 @@ __pycache__/
 venv/
 reports/output/
 *.log
+.agent/PLAN.md
