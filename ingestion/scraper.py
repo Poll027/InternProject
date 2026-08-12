@@ -9,6 +9,7 @@ from crawl4ai import AsyncWebCrawler
 from firecrawl import Firecrawl
 
 from extraction.classifier import OPENROUTER_MODEL, get_openrouter_headers, post_to_openrouter
+from ingestion.health import record_run_outcome
 from ingestion.sources import SOURCES
 from utils.hashing import generate_item_hash
 from utils.logger import get_logger
@@ -148,6 +149,8 @@ def run_scrape_pipeline(conn, source_names=None):
         try:
             new_items = poll_scrape_source(source, conn, firecrawl_client, headers)
             logger.info(f"{source['name']}: {len(new_items)} new items found")
+            record_run_outcome(conn, source["name"], found_count=len(new_items))
         except Exception as e:
             logger.error(f"Scrape failed for {source['name']}: {e}")
+            record_run_outcome(conn, source["name"], error=e)
         time.sleep(1)

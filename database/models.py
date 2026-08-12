@@ -66,6 +66,14 @@ CREATE INDEX IF NOT EXISTS idx_findings_service_line ON findings(service_line);
 CREATE INDEX IF NOT EXISTS idx_source_items_status ON source_items(processing_status);
 """
 
+def _ensure_column(conn, table, column, definition):
+    existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def create_tables (conn):
     conn.executescript(CREATE_TABLES_SQL)
+    _ensure_column(conn, "sources", "consecutive_empty_runs", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(conn, "sources", "consecutive_failed_runs", "INTEGER NOT NULL DEFAULT 0")
     conn.commit()

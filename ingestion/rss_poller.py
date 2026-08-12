@@ -5,6 +5,7 @@ import feedparser
 
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
 from crawl4ai.processors.pdf import PDFCrawlerStrategy, PDFContentScrapingStrategy
+from ingestion.health import record_run_outcome
 from ingestion.sources import SOURCES
 from utils.db_filters import in_clause
 from utils.hashing import generate_item_hash
@@ -53,8 +54,13 @@ def poll_rss_source(source, conn):
 def run_rss_pipeline(conn, source_names=None):
     rss_sources = [s for s in SOURCES if s["pipeline"] == "RSS" and (not source_names or s["name"] in source_names)]
     for source in rss_sources:
-        new_items = poll_rss_source(source, conn)
-        logger.info(f"{source['name']}: {len(new_items)} new items found")
+        try:
+            new_items = poll_rss_source(source, conn)
+            logger.info(f"{source['name']}: {len(new_items)} new items found")
+            record_run_outcome(conn, source["name"], found_count=len(new_items))
+        except Exception as e:
+            logger.error(f"RSS poll failed for {source['name']}: {e}")
+            record_run_outcome(conn, source["name"], error=e)
 
 PDF_CONFIG = CrawlerRunConfig(scraping_strategy=PDFContentScrapingStrategy())
 
