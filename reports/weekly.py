@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import os
 
+from extraction.classifier import SERVICE_LINES
 from utils.db_filters import in_clause
 from utils.logger import get_logger
 
@@ -24,9 +25,10 @@ def get_days_since_last_report(conn, report_type, default_days):
     return max(elapsed_days, 0)
 
 
-def get_period_findings(conn, days=7, urgency_levels=None):
+def get_period_findings(conn, days=7, urgency_levels=None, service_line=None):
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    clause, extra_params = in_clause("findings.urgency", urgency_levels)
+    urgency_clause, urgency_params = in_clause("findings.urgency", urgency_levels)
+    line_clause, line_params = in_clause("findings.service_line", [service_line] if service_line else None)
     return conn.execute(
         f"""
         SELECT findings.id, findings.service_line, findings.urgency, findings.headline, findings.summary,
@@ -39,10 +41,10 @@ def get_period_findings(conn, days=7, urgency_levels=None):
                END AS urgency_rank
         FROM findings
         JOIN opportunity_framings ON opportunity_framings.finding_id = findings.id
-        WHERE findings.created_at >= ?{clause}
+        WHERE findings.created_at >= ?{urgency_clause}{line_clause}
         ORDER BY urgency_rank ASC, findings.confidence_score DESC
         """,
-        (cutoff, *extra_params),
+        (cutoff, *urgency_params, *line_params),
     ).fetchall()
 
 
@@ -106,16 +108,21 @@ def persist_report(conn, report_type, findings, filename_prefix, days):
     return attachment_path
 
 
-def generate_weekly_report(conn, default_days=7):
-    days = get_days_since_last_report(conn, "WEEKLY", default_days)
-    findings = get_period_findings(conn, days, urgency_levels=URGENT_LEVELS)
+def generate_weekly_reports(conn, default_days=7):
+    """Returns a list of (service_line, email_body, attachment_path) for lines with urgent findings."""
+    results = []
+    for service_line in SERVICE_LINES:
+        report_type = f"WEEKLY_{service_line}"
+        days = get_days_since_last_report(conn, report_type, default_days)
+        findings = get_period_findings(conn, days, urgency_levels=URGENT_LEVELS, service_line=service_line)
 
-    if not findings:
-        logger.info("No urgent findings since the last weekly report — skipping.")
-        return None, None
+        if not findings:
+            logger.info(f"{service_line}: no urgent findings since the last weekly report — skipping.")
+            continue
 
-    email_body = build_email_body(findings, period_label="week")
-    attachment_path = persist_report(conn, "WEEKLY", findings, "weekly", days)
+        email_body = build_email_body(findings, period_label="week")
+        attachment_path = persist_report(conn, report_type, findings, f"weekly_{service_line.lower()}", days)
 
-    logger.info(f"Weekly report generated: {len(findings)} findings, attachment at {attachment_path}")
-    return email_body, attachment_path
+        logger.info(f"{service_line}: weekly report generated, {len(findings)} findings, attachment at {attachment_path}")
+        results.append((service_line, email_body, attachment_path))
+    return results

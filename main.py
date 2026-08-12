@@ -9,9 +9,9 @@ from ingestion.rss_poller import run_rss_pipeline, run_content_fetch_pipeline
 from ingestion.scraper import run_scrape_pipeline
 from extraction.classifier import run_classification_pipeline
 from extraction.framer import run_framing_pipeline
-from reports.weekly import generate_weekly_report
-from reports.monthly import generate_monthly_report
-from reports.delivery import send_report_email
+from reports.weekly import generate_weekly_reports
+from reports.monthly import generate_monthly_reports
+from reports.delivery import get_recipients_for_service_line, send_report_email
 
 STAGES = ("rss", "scrape", "fetch", "classify", "frame", "report", "monthly", "health")
 
@@ -40,13 +40,15 @@ def parse_args():
     return args
 
 
-def deliver_or_print(body, attachment_path, subject):
+def deliver_or_print(body, attachment_path, subject, recipients):
     sent = False
-    try:
-        sent = send_report_email(body, attachment_path, subject)
-    except Exception as e:
-        print(f"Email delivery failed: {e}")
+    if recipients:
+        try:
+            sent = send_report_email(body, attachment_path, subject, recipients)
+        except Exception as e:
+            print(f"Email delivery failed: {e}")
     if not sent:
+        print(f"[{subject}]")
         print(body)
         print(f"\nAttachment saved to: {attachment_path}")
 
@@ -71,13 +73,15 @@ def main():
     if "frame" in stages:
         run_framing_pipeline(conn, source_names)
     if "report" in stages:
-        email_body, attachment_path = generate_weekly_report(conn)
-        if email_body:
-            deliver_or_print(email_body, attachment_path, f"RegWatch Weekly Alert — {datetime.now(timezone.utc).date().isoformat()}")
+        for service_line, email_body, attachment_path in generate_weekly_reports(conn):
+            recipients = get_recipients_for_service_line(service_line)
+            subject = f"RegWatch Weekly Alert — {service_line} — {datetime.now(timezone.utc).date().isoformat()}"
+            deliver_or_print(email_body, attachment_path, subject, recipients)
     if "monthly" in stages:
-        email_body, attachment_path = generate_monthly_report(conn)
-        if email_body:
-            deliver_or_print(email_body, attachment_path, f"RegWatch Monthly Digest — {datetime.now(timezone.utc).date().isoformat()}")
+        for service_line, email_body, attachment_path in generate_monthly_reports(conn):
+            recipients = get_recipients_for_service_line(service_line)
+            subject = f"RegWatch Monthly Digest — {service_line} — {datetime.now(timezone.utc).date().isoformat()}"
+            deliver_or_print(email_body, attachment_path, subject, recipients)
     if "health" in stages:
         check_source_health(conn, source_names)
 

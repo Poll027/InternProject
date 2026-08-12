@@ -11,10 +11,13 @@ logger = get_logger(__name__)
 SENDGRID_API_URL = "https://api.sendgrid.com/v3/mail/send"
 
 
-def send_report_email(body, attachment_path, subject):
-    recipients = [r.strip() for r in os.getenv("EMAIL_TO", "").split(",") if r.strip()]
+def get_recipients_for_service_line(service_line):
+    return [r.strip() for r in os.getenv(f"EMAIL_TO_{service_line}", "").split(",") if r.strip()]
+
+
+def send_report_email(body, attachment_path, subject, recipients):
     if not recipients:
-        logger.error("EMAIL_TO not set — skipping email delivery.")
+        logger.error("No recipients provided — skipping email delivery.")
         return False
 
     with open(attachment_path, "rb") as f:
