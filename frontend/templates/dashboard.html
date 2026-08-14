@@ -9,7 +9,10 @@
 <body>
     <div class="topbar">
         <div class="topbar-inner">
-            <div class="brand">RegWatch</div>
+            <div class="brand">
+                <img src="/static/img/deloitte-logo.svg" alt="Deloitte" class="logo-img">
+                <span class="brand-name">RegWatch</span>
+            </div>
             <div class="topbar-actions">
                 <form method="post" action="/switch-team" class="team-switcher">
                     {% for key, t in teams.items() %}

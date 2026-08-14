@@ -1,14 +1,49 @@
 /* RegWatch styles */
 
+@font-face {
+    font-family: 'Evoria Display';
+    src: url('/static/fonts/Evoria_demo.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Megion Display';
+    src: url('/static/fonts/MegionDemo-Bold.otf') format('opentype');
+    font-weight: bold;
+    font-style: normal;
+}
+
+:root {
+    --bg: #000000;
+    --surface: #141414;
+    --surface-hover: #1c1c1c;
+    --border: #2a2a2a;
+    --text: #ffffff;
+    --text-secondary: #999999;
+    --text-muted: #666666;
+    --accent: #86BC25;
+    --accent-text: #000000;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-display: 'Evoria Display', serif;
+    --font-heading: 'Megion Display', var(--font-body);
+}
+
 * {
     box-sizing: border-box;
 }
 
 body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    color: #1a1a18;
-    background: #f5f5f3;
+    font-family: var(--font-body);
+    color: var(--text);
+    background: var(--bg);
+}
+
+.logo-img {
+    height: 18px;
+    display: block;
+    flex-shrink: 0;
 }
 
 /* --- Login page --- */
@@ -24,28 +59,35 @@ body {
 .login-card {
     width: 100%;
     max-width: 380px;
-    background: #ffffff;
-    border: 1px solid #e0dfd8;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 2rem 1.75rem;
     text-align: center;
 }
 
 .login-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.login-brand-name {
+    font-family: var(--font-display);
     font-size: 22px;
     font-weight: 500;
-    color: #1a1a18;
+    color: var(--text);
 }
 
 .login-subtitle {
     font-size: 13px;
-    color: #888888;
-    margin-top: 0.25rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
 }
 
 .login-instruction {
     font-size: 13px;
-    color: #888888;
+    color: var(--text-secondary);
     margin: 1.5rem 0 1rem;
 }
 
@@ -61,10 +103,10 @@ body {
     align-items: center;
     gap: 0.5rem;
     padding: 1.25rem 1rem;
-    border: 1px solid #e0dfd8;
+    border: 1px solid var(--border);
     border-radius: 6px;
-    background: #ffffff;
-    color: #1a1a18;
+    background: var(--bg);
+    color: var(--text);
     font-family: inherit;
     font-size: 13px;
     font-weight: 400;
@@ -73,13 +115,13 @@ body {
 
 .team-btn i {
     font-size: 22px;
-    color: #1a1a18;
+    color: var(--accent);
 }
 
 .team-btn:hover,
 .team-btn:focus {
-    border-color: #1a1a18;
-    background: #fafaf8;
+    border-color: var(--accent);
+    background: var(--surface-hover);
     outline: none;
 }
 
@@ -92,27 +134,29 @@ body {
 }
 
 .section-head {
+    font-family: var(--font-heading);
     font-size: 11px;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #1a1a18;
+    color: var(--text);
     margin: 0 0 0.75rem;
 }
 
 .empty-state {
     font-size: 13px;
-    color: #888888;
+    color: var(--text-secondary);
     padding: 0.75rem 0;
 }
 
 .divider {
     border: none;
-    border-top: 1px solid #e0dfd8;
+    border-top: 1px solid var(--border);
     margin: 1.5rem 0;
 }
 
 /* --- Badges --- */
+/* Self-contained light chips — deliberately unchanged on the dark theme, still read clearly against black */
 
 .badge {
     display: inline-block;
@@ -136,8 +180,8 @@ body {
 .topbar {
     position: sticky;
     top: 0;
-    background: #ffffff;
-    border-bottom: 1px solid #e0dfd8;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
     z-index: 10;
 }
 
@@ -152,9 +196,16 @@ body {
 }
 
 .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.brand-name {
+    font-family: var(--font-display);
     font-size: 22px;
     font-weight: 500;
-    color: #1a1a18;
+    color: var(--text);
 }
 
 .topbar-actions {
@@ -173,21 +224,21 @@ body {
     font-size: 12px;
     font-weight: 400;
     padding: 5px 12px;
-    border: 1px solid #e0dfd8;
+    border: 1px solid var(--border);
     border-radius: 20px;
-    background: #ffffff;
-    color: #1a1a18;
+    background: var(--bg);
+    color: var(--text);
     cursor: pointer;
 }
 
 .team-pill:hover {
-    border-color: #1a1a18;
+    border-color: var(--accent);
 }
 
 .team-pill-active {
-    background: #1a1a18;
-    color: #ffffff;
-    border-color: #1a1a18;
+    background: var(--accent);
+    color: var(--accent-text);
+    border-color: var(--accent);
 }
 
 .btn-run {
@@ -200,8 +251,8 @@ body {
     padding: 6px 12px;
     border: none;
     border-radius: 6px;
-    background: #1a1a18;
-    color: #ffffff;
+    background: var(--accent);
+    color: var(--accent-text);
     cursor: pointer;
 }
 
@@ -212,12 +263,12 @@ body {
 
 .signout-link {
     font-size: 12px;
-    color: #888888;
+    color: var(--text-secondary);
     text-decoration: none;
 }
 
 .signout-link:hover {
-    color: #1a1a18;
+    color: var(--text);
 }
 
 /* --- Error banner --- */
@@ -245,26 +296,27 @@ body {
 }
 
 .stat-card {
-    background: #ffffff;
-    border: 1px solid #e0dfd8;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 1rem;
 }
 
 .stat-label {
     font-size: 11px;
-    color: #888888;
+    color: var(--text-secondary);
     margin-bottom: 0.25rem;
 }
 
 .stat-number {
+    font-family: var(--font-heading);
     font-size: 22px;
     font-weight: 500;
-    color: #1a1a18;
+    color: var(--text);
 }
 
-.stat-danger { color: #991b1b; }
-.stat-amber  { color: #92400e; }
+.stat-danger { color: #f87171; }
+.stat-amber  { color: #fbbf24; }
 
 /* --- Dashboard grid --- */
 
@@ -292,7 +344,7 @@ body {
 }
 
 .finding-row:hover {
-    background: #fafaf8;
+    background: var(--surface-hover);
 }
 
 .finding-row .badge {
@@ -310,7 +362,7 @@ body {
 
 .finding-title {
     font-size: 13px;
-    color: #1a1a18;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -318,12 +370,12 @@ body {
 
 .finding-meta {
     font-size: 11px;
-    color: #888888;
+    color: var(--text-secondary);
 }
 
 .finding-row > i {
     flex-shrink: 0;
-    color: #aaaaaa;
+    color: var(--text-muted);
     margin-top: 2px;
 }
 
@@ -339,7 +391,7 @@ body {
     align-items: center;
     gap: 8px;
     padding: 0.625rem 0.5rem;
-    border-bottom: 1px solid #e0dfd8;
+    border-bottom: 1px solid var(--border);
     font-size: 12px;
 }
 
@@ -349,16 +401,16 @@ body {
 
 .source-name {
     font-weight: 500;
-    color: #1a1a18;
+    color: var(--text);
     flex-shrink: 0;
 }
 
 .source-pipeline {
-    color: #888888;
+    color: var(--text-secondary);
 }
 
 .source-total {
-    color: #888888;
+    color: var(--text-secondary);
     margin-left: auto;
 }
 
@@ -369,19 +421,20 @@ body {
     align-items: center;
     gap: 4px;
     font-size: 12px;
-    color: #888888;
+    color: var(--text-secondary);
     text-decoration: none;
     margin-bottom: 1rem;
 }
 
 .back-link:hover {
-    color: #1a1a18;
+    color: var(--text);
 }
 
 .detail-title {
+    font-family: var(--font-heading);
     font-size: 22px;
     font-weight: 500;
-    color: #1a1a18;
+    color: var(--text);
     margin: 0 0 0.75rem;
 }
 
@@ -394,7 +447,7 @@ body {
 
 .detail-meta-text {
     font-size: 12px;
-    color: #888888;
+    color: var(--text-secondary);
 }
 
 .confidence-row {
@@ -407,20 +460,20 @@ body {
 .confidence-track {
     flex: 1;
     height: 4px;
-    background: #e0dfd8;
+    background: var(--border);
     border-radius: 2px;
     overflow: hidden;
 }
 
 .confidence-fill {
     height: 100%;
-    background: #16a34a;
+    background: var(--accent);
     border-radius: 2px;
 }
 
 .confidence-value {
     font-size: 12px;
-    color: #888888;
+    color: var(--text-secondary);
     flex-shrink: 0;
 }
 
@@ -431,7 +484,7 @@ body {
 .detail-body {
     font-size: 14px;
     line-height: 1.6;
-    color: #1a1a18;
+    color: var(--text);
 }
 
 .detail-body.framing {
@@ -441,13 +494,13 @@ body {
 .evidence-box {
     margin: 0;
     padding: 0.875rem 1rem;
-    background: #ffffff;
-    border: 1px solid #e0dfd8;
-    border-left: 3px solid #1a1a18;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
     border-radius: 6px;
     font-size: 13px;
     font-style: italic;
-    color: #1a1a18;
+    color: var(--text);
 }
 
 .source-link {
@@ -455,7 +508,7 @@ body {
     align-items: center;
     gap: 6px;
     font-size: 13px;
-    color: #1a1a18;
+    color: var(--accent);
     text-decoration: none;
     word-break: break-all;
 }
