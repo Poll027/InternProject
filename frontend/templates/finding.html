@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RegWatch — Finding</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="topbar">
+        <div class="topbar-inner">
+            <div class="brand">RegWatch</div>
+            <div class="topbar-actions">
+                <span class="badge badge-team">{{ team_label }}</span>
+                <a href="/login" class="signout-link">Sign out</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="page">
+        <a href="/dashboard" class="back-link"><i class="ti ti-arrow-left" aria-hidden="true"></i> Back to dashboard</a>
+
+        <h1 class="detail-title">{{ finding.title }}</h1>
+
+        <div class="detail-meta">
+            <span class="badge badge-{{ finding.urgency|lower }}">{{ finding.urgency }}</span>
+            <span class="badge badge-team">{{ finding_team_label }}</span>
+            <span class="detail-meta-text">{{ finding.source_name }}</span>
+            <span class="detail-meta-text">{{ finding.published_date or finding.created_at[:10] }}</span>
+        </div>
+
+        <div class="confidence-row">
+            <div class="confidence-track">
+                <div class="confidence-fill" style="width: {{ (finding.confidence_score * 100)|int }}%"></div>
+            </div>
+            <span class="confidence-value">{{ "%.2f"|format(finding.confidence_score) }}</span>
+        </div>
+
+        <section class="detail-section">
+            <h2 class="section-head">Summary</h2>
+            <div class="detail-body">{{ finding.summary }}</div>
+        </section>
+
+        <section class="detail-section">
+            <h2 class="section-head">Evidence</h2>
+            <blockquote class="evidence-box">{{ finding.evidence_excerpt }}</blockquote>
+        </section>
+
+        {% if framing %}
+        <section class="detail-section">
+            <h2 class="section-head">Opportunity framing</h2>
+            <div class="detail-body framing">{{ framing.framing_text }}</div>
+        </section>
+        {% endif %}
+
+        <hr class="divider">
+
+        <a href="{{ finding.source_url }}" target="_blank" rel="noopener" class="source-link">
+            <i class="ti ti-external-link" aria-hidden="true"></i> {{ finding.source_url }}
+        </a>
+    </div>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+</body>
+</html>

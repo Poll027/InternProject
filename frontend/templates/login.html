@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RegWatch</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="login-body">
+    <div class="login-card">
+        <div class="login-brand">RegWatch</div>
+        <div class="login-subtitle">Nigeria Regulatory Intelligence</div>
+        <p class="login-instruction">Select your team to continue</p>
+        <form method="post" action="/login">
+            <div class="team-grid">
+                {% for key, team in teams.items() %}
+                <button type="submit" name="team" value="{{ key }}" class="team-btn">
+                    <i class="ti {{ team.icon }}" aria-hidden="true"></i>
+                    <span>{{ team.label }}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </form>
+    </div>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+</body>
+</html>

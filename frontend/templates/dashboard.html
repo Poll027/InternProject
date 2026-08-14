@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RegWatch — Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="topbar">
+        <div class="topbar-inner">
+            <div class="brand">RegWatch</div>
+            <div class="topbar-actions">
+                <form method="post" action="/switch-team" class="team-switcher">
+                    {% for key, t in teams.items() %}
+                    <button type="submit" name="team" value="{{ key }}" class="team-pill {% if key == team %}team-pill-active{% endif %}">{{ t.label }}</button>
+                    {% endfor %}
+                </form>
+                <button id="run-btn" class="btn-run" onclick="triggerRun()"><i class="ti ti-refresh" aria-hidden="true"></i> Run now</button>
+                <a href="/login" class="signout-link">Sign out</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="page">
+        {% if errors %}
+        <div class="error-banner">
+            <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+            {{ errors|length }} fetch error{{ "s" if errors|length != 1 else "" }} in the last 7 days — {{ errors|map(attribute='source_name')|unique|join(', ') }}
+        </div>
+        {% endif %}
+
+        <div class="stat-row">
+            <div class="stat-card">
+                <div class="stat-label">Total findings</div>
+                <div class="stat-number">{{ stats.total }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Critical / High</div>
+                <div class="stat-number {% if stats.critical_high > 0 %}stat-danger{% endif %}">{{ stats.critical_high }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">New this week</div>
+                <div class="stat-number">{{ stats.this_week }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Source errors</div>
+                <div class="stat-number {% if sources|sum(attribute='failure_count') > 0 %}stat-amber{% endif %}">{{ sources|sum(attribute='failure_count') }}</div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="col-main">
+                {% if urgent %}
+                <section>
+                    <h2 class="section-head">This week — urgent</h2>
+                    <div class="finding-list">
+                        {% for f in urgent %}
+                        <a href="/finding/{{ f.id }}" class="finding-row">
+                            <span class="badge badge-{{ f.urgency|lower }}">{{ f.urgency }}</span>
+                            <span class="finding-body">
+                                <span class="finding-title">{{ f.headline or "Untitled finding" }}</span>
+                                <span class="finding-meta">{{ f.source_name }} · {{ f.published_date or f.created_at[:10] }} · {{ "%.2f"|format(f.confidence_score) }}</span>
+                            </span>
+                            <i class="ti ti-chevron-right" aria-hidden="true"></i>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </section>
+                <hr class="divider">
+                {% endif %}
+
+                <section>
+                    <h2 class="section-head">This month — all findings</h2>
+                    {% if monthly %}
+                    <div class="finding-list">
+                        {% for f in monthly %}
+                        <a href="/finding/{{ f.id }}" class="finding-row">
+                            <span class="badge badge-{{ f.urgency|lower }}">{{ f.urgency }}</span>
+                            <span class="finding-body">
+                                <span class="finding-title">{{ f.headline or "Untitled finding" }}</span>
+                                <span class="finding-meta">{{ f.source_name }} · {{ f.published_date or f.created_at[:10] }} · {{ "%.2f"|format(f.confidence_score) }}</span>
+                            </span>
+                            <i class="ti ti-chevron-right" aria-hidden="true"></i>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="empty-state">No findings this month.</p>
+                    {% endif %}
+                </section>
+            </div>
+
+            <div class="col-side">
+                <section>
+                    <h2 class="section-head">Source status</h2>
+                    <div class="source-list">
+                        {% for s in sources %}
+                        <div class="source-row">
+                            <span class="source-name">{{ s.name }}</span>
+                            <span class="source-pipeline">{{ s.pipeline }}</span>
+                            <span class="source-total">{{ s.total_items }} items</span>
+                            {% if s.failure_count > 0 %}
+                            <span class="badge badge-fail">Error</span>
+                            {% else %}
+                            <span class="badge badge-ok">OK</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+    <script>
+    function triggerRun() {
+      const btn = document.getElementById('run-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ti ti-loader"></i> Running…';
+      fetch('/api/run', {method:'POST'})
+        .then(() => {
+          setTimeout(() => { window.location.reload(); }, 8000);
+        })
+        .catch(() => {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="ti ti-refresh"></i> Run now';
+        });
+    }
+    </script>
+</body>
+</html>

@@ -7,3 +7,4 @@ reports/output/
 *.log
 .agent/PLAN.md
 framings_review.txt
+.claude/
